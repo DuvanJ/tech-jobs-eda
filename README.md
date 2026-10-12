@@ -1,5 +1,7 @@
 # 📊 Tech Jobs EDA — Stack Overflow Developer Survey 2025
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://tech-jobs-eda.streamlit.app/)
+
 Exploratory Data Analysis interactivo del Stack Overflow Developer Survey 2025, construido con Python y Streamlit.
 
 ## 🔍 ¿Qué analiza?
@@ -54,5 +56,5 @@ Fuente: [survey.stackoverflow.co](https://survey.stackoverflow.co/)
 
 ## 👤 Autor
 
-**Duvan** 
+**Duvan** — Ingeniería en Software  
 [GitHub](https://github.com/DuvanJ)
