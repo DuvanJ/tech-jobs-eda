@@ -94,7 +94,7 @@ hr{border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(59,1
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
-ALLOWED_CSV = "salaries.csv"   # única ruta permitida — nunca exponer rutas del sistema
+ALLOWED_CSV = "survey_results_public_2025.csv"   # única ruta permitida — nunca exponer rutas del sistema
 MAX_FILE_MB = 200              # límite de tamaño del CSV
 
 @st.cache_data(show_spinner=False)
