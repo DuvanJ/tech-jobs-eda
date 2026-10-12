@@ -56,5 +56,5 @@ Fuente: [survey.stackoverflow.co](https://survey.stackoverflow.co/)
 
 ## 👤 Autor
 
-**Duvan** — Ingeniería en Software  
+**Duvan**  
 [GitHub](https://github.com/DuvanJ)
