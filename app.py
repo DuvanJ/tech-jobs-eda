@@ -3,8 +3,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import urllib.request
-import urllib.error
 import os
 import logging
 
@@ -54,7 +52,7 @@ GRID_STYLE = dict(
     linecolor="rgba(59,130,246,0.2)",
 )
 
-# ── Global CSS (minified — sin comentarios para evitar traduccion automatica) ──
+# ── Global CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <meta name="google" content="notranslate">
 <style>
@@ -94,46 +92,39 @@ hr{border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(59,1
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
-ALLOWED_CSV = "survey_results_public_2025.csv"   # única ruta permitida — nunca exponer rutas del sistema
-MAX_FILE_MB = 200              # límite de tamaño del CSV
+# FIX: nombre real del archivo en el repositorio
+ALLOWED_CSV = "resultados_de_la_encuesta_públicos_2025.csv"
+MAX_FILE_MB = 200
 
 @st.cache_data(show_spinner=False)
 def load_data():
     csv_path = ALLOWED_CSV
-    url = "https://raw.githubusercontent.com/nicholasgasior/public-data/main/survey_results_public_2025.csv"
 
-    # ── Descarga segura ───────────────────────────────────────────────────────
     if not os.path.exists(csv_path):
-        try:
-            with st.spinner("⬇️ Descargando dataset…"):
-                urllib.request.urlretrieve(url, csv_path)
-        except urllib.error.URLError as e:
-            logger.error("Descarga fallida: %s", e)
-            st.error("❌ Sin conexión a internet. Coloca `salaries.csv` en la carpeta del proyecto y reinicia.")
-            st.stop()
-        except Exception as e:
-            logger.error("Error inesperado en descarga: %s", e)
-            st.error("❌ No se pudo obtener el dataset. Intenta de nuevo o coloca `salaries.csv` manualmente.")
-            st.stop()
-
-    # ── Validación del archivo ────────────────────────────────────────────────
-    file_size_mb = os.path.getsize(csv_path) / (1024 * 1024)
-    if file_size_mb > MAX_FILE_MB:
-        st.error(f"❌ El archivo supera el límite de {MAX_FILE_MB} MB. Verifica que sea el dataset correcto.")
+        st.error(
+            f"❌ No se encontró el dataset `{ALLOWED_CSV}`. "
+            "Asegúrate de que el archivo esté en la raíz del repositorio."
+        )
         st.stop()
 
-    # ── Lectura segura ────────────────────────────────────────────────────────
+    # Validación de tamaño
+    file_size_mb = os.path.getsize(csv_path) / (1024 * 1024)
+    if file_size_mb > MAX_FILE_MB:
+        st.error(f"❌ El archivo supera el límite de {MAX_FILE_MB} MB.")
+        st.stop()
+
+    # Lectura segura
     try:
         all_cols = pd.read_csv(csv_path, nrows=0).columns.tolist()
     except Exception as e:
         logger.error("No se pudo leer el CSV: %s", e)
-        st.error("❌ El archivo `salaries.csv` no es un CSV válido o está corrupto. Elimínalo y recarga la página.")
+        st.error("❌ El archivo CSV no es válido o está corrupto.")
         st.stop()
 
-    # Detect experience column (name varies by survey year)
+    # Detectar columna de experiencia
     exp_col = next((c for c in ["YearsCodePro", "YearsCode", "WorkExp"] if c in all_cols), None)
 
-    # Detect salary column
+    # Detectar columna de salario
     sal_col = next((c for c in ["ConvertedCompYearly", "ConvertedComp", "CompTotal"] if c in all_cols), None)
 
     cols = [
@@ -163,14 +154,14 @@ def load_data():
         st.error("❌ El dataset tiene muy pocas filas. Verifica que el archivo no esté vacío.")
         st.stop()
 
-    # Normalize salary column name
+    # Normalizar columna de salario
     if sal_col and sal_col in df.columns and sal_col != "Salary":
         df = df.rename(columns={sal_col: "Salary"})
     if "Salary" in df.columns:
         df["Salary"] = pd.to_numeric(df["Salary"], errors="coerce")
         df = df[df["Salary"].between(10_000, 500_000)]
 
-    # Normalize experience column name
+    # Normalizar columna de experiencia
     if exp_col and exp_col in df.columns and exp_col != "YearsCodePro":
         df = df.rename(columns={exp_col: "YearsCodePro"})
     if "YearsCodePro" in df.columns:
@@ -217,7 +208,6 @@ def empty_state(msg="Sin datos suficientes para este gráfico con los filtros ac
     """, unsafe_allow_html=True)
 
 def bar_blue(fig):
-    """Apply a blue gradient to a bar chart trace."""
     fig.update_traces(marker_color=COLORS["primary"], marker_line_width=0)
     return fig
 
@@ -242,25 +232,21 @@ with st.sidebar:
 
     st.markdown('<div style="font-size:0.78rem; color:rgba(226,232,240,0.5); font-weight:600; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:0.5rem;">🔧 Filtros</div>', unsafe_allow_html=True)
 
-    # Remote filter
     remote_opts = ["Todos", "Remoto", "Híbrido", "Presencial"]
     remote_sel = st.selectbox("Modalidad de trabajo", remote_opts)
 
-    # Country filter
     country_opts = ["Todos"]
     if "Country" in df.columns:
         top_countries = df["Country"].value_counts().head(20).index.tolist()
         country_opts += top_countries
     country_sel = st.selectbox("País (top 20)", country_opts)
 
-    # Salary filter
     if "Salary" in df.columns and df["Salary"].notna().any():
         sal_min = max(0, int(df["Salary"].min()))
         sal_max = min(500_000, int(df["Salary"].max()))
         if sal_min >= sal_max:
             sal_min, sal_max = 10_000, 300_000
         sal_range = st.slider("Rango de salario (USD)", sal_min, sal_max, (sal_min, sal_max), step=5000)
-        # Validación: mínimo siempre menor que máximo
         if sal_range[0] >= sal_range[1]:
             st.sidebar.error("El salario mínimo debe ser menor al máximo.")
             sal_range = (sal_min, sal_max)
@@ -289,7 +275,6 @@ if country_sel != "Todos" and "Country" in dff.columns:
 if "Salary" in dff.columns:
     dff = dff[dff["Salary"].between(*sal_range)]
 
-# ── Aviso si los filtros no dejan datos ──────────────────────────────────────
 if len(dff) == 0:
     st.warning("⚠️ La combinación de filtros no tiene resultados. Ajusta los filtros del panel izquierdo.")
     st.stop()
@@ -334,7 +319,7 @@ with k3:
         st.metric("Salario mediano", "—")
 with k4:
     if "Salary" in dff.columns and dff["Salary"].notna().any():
-        st.metric("Salario máx", fmt(dff["Salary"].quantile(0.95), "$"))
+        st.metric("Salario máx (p95)", fmt(dff["Salary"].quantile(0.95), "$"))
     else:
         st.metric("Salario máx (p95)", "—")
 with k5:
@@ -422,8 +407,6 @@ with tabs[0]:
     st.markdown('<div class="section-title">Satisfacción laboral</div>', unsafe_allow_html=True)
 
     if "JobSat" in dff.columns and dff["JobSat"].notna().any():
-        # Detectar si los valores son numéricos o texto
-        # Stack Overflow 2025: 1 = Very dissatisfied → 5 = Very satisfied (Likert estandar)
         numeric_map = {
             1: "Muy insatisfecho",
             2: "Algo insatisfecho",
@@ -442,23 +425,20 @@ with tabs[0]:
         def map_jobsat(val):
             if pd.isna(val):
                 return None
-            # Primero intentar como número
             try:
                 n = int(float(val))
                 if n in numeric_map:
                     return numeric_map[n]
             except (ValueError, TypeError):
                 pass
-            # Luego como texto
             s = str(val).strip()
             if s in text_map:
                 return text_map[s]
-            # Valores fuera de rango no se mapean
             return None
 
         job_df = dff[dff["JobSat"].notna()].copy()
         job_df["Satisfacción"] = job_df["JobSat"].apply(map_jobsat)
-        job_df = job_df[job_df["Satisfacción"].notna()]  # descartar valores no reconocidos
+        job_df = job_df[job_df["Satisfacción"].notna()]
 
         order = ["Muy satisfecho", "Algo satisfecho", "Neutral", "Algo insatisfecho", "Muy insatisfecho"]
         job_sat = job_df["Satisfacción"].value_counts().reset_index()
@@ -488,7 +468,6 @@ with tabs[0]:
     else:
         empty_state("No hay datos de satisfacción laboral disponibles.")
 
-    # Dev types
     st.markdown('<div class="section-title">Roles más comunes</div>', unsafe_allow_html=True)
     if "DevType" in dff.columns:
         devtype_series = dff["DevType"].dropna().str.split(";").explode().str.strip()
@@ -549,13 +528,6 @@ with tabs[1]:
                 box_df = box_df[box_df["Modalidad"].notna()]
 
                 order = ["Remoto", "Híbrido", "Presencial"]
-                medians = (
-                    box_df.groupby("Modalidad")["Salary"]
-                    .median()
-                    .reindex(order)
-                    .dropna()
-                )
-
                 fig = go.Figure()
                 palette = [COLORS["primary"], COLORS["accent"], COLORS["success"]]
                 for i, mod in enumerate([m for m in order if m in box_df["Modalidad"].values]):
@@ -565,7 +537,7 @@ with tabs[1]:
                         name=mod,
                         marker_color=palette[i % len(palette)],
                         line_color=palette[i % len(palette)],
-                        fillcolor=palette[i % len(palette)].replace(")", ", 0.15)").replace("rgb", "rgba") if "rgb" in palette[i % len(palette)] else palette[i % len(palette)] + "26",
+                        fillcolor=palette[i % len(palette)] + "26",
                         boxmean=False,
                         marker_size=2,
                         line_width=1.5,
@@ -579,7 +551,6 @@ with tabs[1]:
                 fig.update_yaxes(tickprefix="$", **GRID_STYLE)
                 chart(fig)
 
-        # Salary by experience
         st.markdown('<div class="section-title">Salario vs. Experiencia</div>', unsafe_allow_html=True)
         if "YearsCodePro" in dff.columns:
             exp_sal = dff[dff["YearsCodePro"].notna() & dff["Salary"].notna()].copy()
@@ -605,7 +576,6 @@ with tabs[1]:
             fig.update_yaxes(tickprefix="$", **GRID_STYLE)
             chart(fig)
 
-        # Salary by role
         st.markdown('<div class="section-title">Salario por rol</div>', unsafe_allow_html=True)
         if "DevType" in dff.columns:
             role_sal = (
@@ -709,7 +679,6 @@ with tabs[2]:
             fig.update_yaxes(showgrid=False)
             chart(fig)
 
-    # Tech salary correlation
     st.markdown('<div class="section-title">Salario por lenguaje (mediana)</div>', unsafe_allow_html=True)
     if "LanguageHaveWorkedWith" in dff.columns and "Salary" in dff.columns:
         lang_sal = (
@@ -803,7 +772,6 @@ with tabs[3]:
         except ImportError:
             st.warning("Instala `pycountry` para ver el mapa: `pip install pycountry`")
 
-        # Top countries bar
         st.markdown('<div class="section-title">Top 15 países por respuestas</div>', unsafe_allow_html=True)
         top_countries = dff["Country"].value_counts().head(15).reset_index()
         top_countries.columns = ["País", "Respuestas"]
@@ -823,7 +791,6 @@ with tabs[3]:
         fig.update_yaxes(showgrid=False)
         chart(fig)
 
-        # Salary by country
         if "Salary" in dff.columns:
             st.markdown('<div class="section-title">Salario mediano por país (Top 15)</div>', unsafe_allow_html=True)
             sal_country = (
@@ -864,17 +831,6 @@ with tabs[4]:
     with col1:
         st.markdown('<div class="section-title">Nivel educativo</div>', unsafe_allow_html=True)
         if "EdLevel" in dff.columns:
-            ed_map = {
-                "Bachelor's degree (B.A., B.S., B.Eng., etc.)": "Licenciatura",
-                "Master's degree (M.A., M.S., M.Eng., MBA, etc.)": "Maestría",
-                "Some college/university study without earning a degree": "Sin título",
-                "Secondary school (e.g. American high school, German Realschule or Gymnasium, etc.)": "Secundaria",
-                "Associate degree (A.A., A.S., etc.)": "Técnico",
-                "Professional degree (JD, MD, Ph.D, Ed.D, etc.)": "Doctorado/Prof.",
-                "Primary/elementary school": "Primaria",
-                "Something else": "Otro",
-            }
-            # Map using flexible partial matching
             def map_ed(val):
                 v = str(val).lower()
                 if "bachelor" in v:           return "Licenciatura"
@@ -885,12 +841,12 @@ with tabs[4]:
                 if "professional" in v or "ph.d" in v or "doctoral" in v or "doctor" in v: return "Doctorado/Prof."
                 if "primary" in v or "elementary" in v: return "Primaria"
                 return "Otro"
+
             ed_series = dff["EdLevel"].map(map_ed)
             ed = ed_series.value_counts().reset_index()
             ed.columns = ["Nivel", "Respuestas"]
             total_ed = ed["Respuestas"].sum()
             ed["Pct"] = ed["Respuestas"] / total_ed * 100
-            # Merge categories < 2% into "Otro"
             otros = ed[ed["Pct"] < 2]["Respuestas"].sum()
             ed = ed[ed["Pct"] >= 2].copy()
             if otros > 0:
@@ -913,12 +869,7 @@ with tabs[4]:
             fig.update_layout(
                 title="Distribución educativa",
                 **CHART_LAYOUT,
-                legend=dict(
-                    orientation="v",
-                    x=1.02, y=0.5,
-                    xanchor="left",
-                    font=dict(size=11),
-                ),
+                legend=dict(orientation="v", x=1.02, y=0.5, xanchor="left", font=dict(size=11)),
                 height=340,
             )
             chart(fig)
@@ -948,28 +899,12 @@ with tabs[4]:
                 <small style="opacity:0.6;">Columnas disponibles con "year": revisa el CSV.</small>
             </div>
             """, unsafe_allow_html=True)
-            # Show available year-related columns for debugging
             year_cols = [c for c in df.columns if "year" in c.lower() or "exp" in c.lower() or "code" in c.lower()]
             if year_cols:
                 st.caption(f"Columnas relacionadas encontradas: `{'`, `'.join(year_cols[:8])}`")
 
-    # Education vs Salary
     st.markdown('<div class="section-title">Salario por nivel educativo</div>', unsafe_allow_html=True)
-    _ed_map = {
-        "Bachelor's degree (B.A., B.S., B.Eng., etc.)": "Licenciatura",
-        "Master's degree (M.A., M.S., M.Eng., MBA, etc.)": "Maestría",
-        "Some college/university study without earning a degree": "Sin título",
-        "Secondary school (e.g. American high school, German Realschule or Gymnasium, etc.)": "Secundaria",
-        "Associate degree (A.A., A.S., etc.)": "Técnico",
-        "Professional degree (JD, MD, Ph.D, Ed.D, etc.)": "Doctorado/Prof.",
-        "Primary/elementary school": "Primaria",
-        "Something else": "Otro",
-    }
     if "EdLevel" in dff.columns and "Salary" in dff.columns:
-        ed_sal = (
-            dff[dff["Salary"].notna() & dff["EdLevel"].notna()]
-            .copy()
-        )
         def _map_ed(val):
             v = str(val).lower()
             if "bachelor" in v:           return "Licenciatura"
@@ -980,6 +915,8 @@ with tabs[4]:
             if "professional" in v or "ph.d" in v or "doctoral" in v or "doctor" in v: return "Doctorado/Prof."
             if "primary" in v or "elementary" in v: return "Primaria"
             return "Otro"
+
+        ed_sal = dff[dff["Salary"].notna() & dff["EdLevel"].notna()].copy()
         ed_sal["EdLevel"] = ed_sal["EdLevel"].map(_map_ed)
         ed_sal_grouped = (
             ed_sal.groupby("EdLevel")["Salary"]
@@ -1004,7 +941,6 @@ with tabs[4]:
         fig.update_yaxes(showgrid=False)
         chart(fig)
 
-    # Age distribution
     st.markdown('<div class="section-title">Distribución por edad</div>', unsafe_allow_html=True)
     if "Age" in dff.columns:
         age = dff["Age"].value_counts().reset_index()
