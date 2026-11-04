@@ -93,7 +93,7 @@ hr{border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(59,1
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 # FIX: nombre real del archivo en el repositorio
-ALLOWED_CSV = "resultados_de_la_encuesta_públicos_2025.csv"
+ALLOWED_CSV = "survey_results_2025.csv"
 MAX_FILE_MB = 200
 
 @st.cache_data(show_spinner=False)
